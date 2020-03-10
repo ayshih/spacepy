@@ -16,6 +16,9 @@ import spacepy
 
 __contact__ = 'Steven Morley, smorley@lanl.gov'
 
+# IRBEM-LIB's value for the average radius of the Earth (see COMMON/GENER)
+_R_EARTH_IRBEM = 6371.2  # km
+
 # -----------------------------------------------
 # space coordinate class
 # -----------------------------------------------
@@ -391,3 +394,76 @@ class Coords(object):
         data.extend(list(otherdata.data))
         newobj = Coords(data, dtype=self.dtype, carsph=self.carsph)
         return newobj
+
+    # -----------------------------------------------
+    def to_skycoord(self):
+        '''
+        Create an Astropy SkyCoord instance based on this instance
+
+        Returns
+        =======
+        out : Astropy SkyCoord instance
+            This coordinate as an Astropy SkyCoord
+
+        Notes
+        =====
+        This function requires Astropy to be installed.
+
+        This function uses the GEO coordinate frame as the common frame between the two libraries.
+        '''
+        from astropy.coordinates import SkyCoord, CartesianRepresentation
+        from astropy.time import Time
+        import astropy.units as u
+
+        # Convert to GEO (i.e., Astropy's ITRS)
+        coord = self.convert('GEO', 'car')
+
+        # Convert the data to an Astropy CartesianRepresentation with units
+        data = CartesianRepresentation(coord.data.T) * _R_EARTH_IRBEM*u.km
+
+        # Convert the Ticktock ticks to an Astropy Time instance
+        if coord.ticks is not None:
+            obstime = Time(coord.ticks.ISO, format='isot', scale='utc')
+        else:
+            obstime = None
+
+        return SkyCoord(data, frame='itrs', obstime=obstime)
+
+    # -----------------------------------------------
+    @classmethod
+    def from_skycoord(cls, skycoord):
+        '''
+        Create a Coords instance from an Astropy SkyCoord instance
+
+        Parameters
+        ==========
+        skycoord : Astropy SkyCoord instance
+            The coordinate to be converted
+
+        Returns
+        =======
+        out : Coords instance
+            The converted coordinate
+
+        Notes
+        =====
+        This function requires Astropy to be installed.
+
+        This function uses the GEO coordinate frame as the common frame between the two libraries.
+        '''
+        from astropy.coordinates import SkyCoord
+        import astropy.units as u
+
+        # Cast the input as a SkyCoord and then transform to Astropy's ITRS (i.e., GEO)
+        skycoord = SkyCoord(skycoord).itrs
+
+        # Convert the SkyCoord's data to a Cartesian representation with units of R_earth
+        data = (skycoord.cartesian.xyz / (_R_EARTH_IRBEM*u.km)).to_value(u.one).T
+
+        # Convert the SkyCoord's obstime to a Ticktock instance
+        if skycoord.obstime is not None:
+            ticks = spacepy.time.Ticktock(skycoord.obstime.utc.isot, 'ISO')
+        else:
+            ticks = None
+
+        return Coords(data, 'GEO', 'car', ticks=ticks)
