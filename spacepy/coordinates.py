@@ -16,9 +16,6 @@ import spacepy
 
 __contact__ = 'Steven Morley, smorley@lanl.gov'
 
-# IRBEM-LIB's value for the average radius of the Earth (see COMMON/GENER)
-_R_EARTH_IRBEM = 6371.2  # km
-
 # -----------------------------------------------
 # space coordinate class
 # -----------------------------------------------
@@ -91,6 +88,9 @@ class Coords(object):
     .. automethod:: from_skycoord
     .. automethod:: to_skycoord
     '''
+
+    Re = 6371200.0 #metres
+
     def __init__(self, data, dtype, carsph, units=None, ticks=None):
 
         from . import irbempy as op
@@ -136,7 +136,6 @@ class Coords(object):
         self.dtype = dtype
         self.carsph = carsph
         # setup units
-        self.Re = 6371000.0 #metres
         if units is None and carsph == 'car':
             # use standard units
             self.units = ['Re', 'Re', 'Re']
@@ -424,8 +423,8 @@ class Coords(object):
         # Convert to GEO (i.e., Astropy's ITRS)
         coord = self.convert('GEO', 'car')
 
-        # Convert the data to be in units of km
-        data = coord.data * _R_EARTH_IRBEM
+        # Convert the data to be in units of m
+        data = coord.data * self.Re
 
         # Convert the Ticktock ticks to an Astropy Time instance
         if coord.ticks is not None:
@@ -434,7 +433,7 @@ class Coords(object):
             obstime = None
 
         return SkyCoord(x=data[:, 0], y=data[:, 1], z=data[:, 2],
-                        unit='km', frame='itrs', obstime=obstime)
+                        unit='m', frame='itrs', obstime=obstime)
 
     # -----------------------------------------------
     @classmethod
@@ -467,7 +466,7 @@ class Coords(object):
         skycoord = SkyCoord(skycoord).itrs
 
         # Convert the SkyCoord's data to a Cartesian representation with units of R_earth
-        data = (skycoord.cartesian.xyz.to_value('km') / _R_EARTH_IRBEM).T
+        data = (skycoord.cartesian.xyz.to_value('m') / cls.Re).T
 
         # Convert the SkyCoord's obstime to a Ticktock instance
         if skycoord.obstime is not None:
