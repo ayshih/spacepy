@@ -84,8 +84,12 @@ class Coords(object):
     .. autosummary::
         ~Coords.append
         ~Coords.convert
+        ~Coords.from_skycoord
+        ~Coords.to_skycoord
     .. automethod:: append
     .. automethod:: convert
+    .. automethod:: from_skycoord
+    .. automethod:: to_skycoord
     '''
     def __init__(self, data, dtype, carsph, units=None, ticks=None):
 
@@ -407,19 +411,21 @@ class Coords(object):
 
         Notes
         =====
-        This function requires Astropy to be installed.
+        This method requires Astropy to be installed.
 
-        This function uses the GEO coordinate frame as the common frame between the two libraries.
+        This method uses the GEO coordinate frame as the common frame between the two libraries.
         '''
-        from astropy.coordinates import SkyCoord, CartesianRepresentation
-        from astropy.time import Time
-        import astropy.units as u
+        try:
+            from astropy.coordinates import SkyCoord
+            from astropy.time import Time
+        except ImportError as e:
+            raise e.__class__("This method requires Astropy to be installed.")
 
         # Convert to GEO (i.e., Astropy's ITRS)
         coord = self.convert('GEO', 'car')
 
-        # Convert the data to an Astropy CartesianRepresentation with units
-        data = CartesianRepresentation(coord.data.T) * _R_EARTH_IRBEM*u.km
+        # Convert the data to be in units of km
+        data = coord.data * _R_EARTH_IRBEM
 
         # Convert the Ticktock ticks to an Astropy Time instance
         if coord.ticks is not None:
@@ -427,7 +433,8 @@ class Coords(object):
         else:
             obstime = None
 
-        return SkyCoord(data, frame='itrs', obstime=obstime)
+        return SkyCoord(x=data[:, 0], y=data[:, 1], z=data[:, 2],
+                        unit='km', frame='itrs', obstime=obstime)
 
     # -----------------------------------------------
     @classmethod
@@ -447,18 +454,20 @@ class Coords(object):
 
         Notes
         =====
-        This function requires Astropy to be installed.
+        This method requires Astropy to be installed.
 
-        This function uses the GEO coordinate frame as the common frame between the two libraries.
+        This method uses the GEO coordinate frame as the common frame between the two libraries.
         '''
-        from astropy.coordinates import SkyCoord
-        import astropy.units as u
+        try:
+            from astropy.coordinates import SkyCoord
+        except ImportError as e:
+            raise e.__class__("This method requires Astropy to be installed.")
 
         # Cast the input as a SkyCoord and then transform to Astropy's ITRS (i.e., GEO)
         skycoord = SkyCoord(skycoord).itrs
 
         # Convert the SkyCoord's data to a Cartesian representation with units of R_earth
-        data = (skycoord.cartesian.xyz / (_R_EARTH_IRBEM*u.km)).to_value(u.one).T
+        data = (skycoord.cartesian.xyz.to_value('km') / _R_EARTH_IRBEM).T
 
         # Convert the SkyCoord's obstime to a Ticktock instance
         if skycoord.obstime is not None:
