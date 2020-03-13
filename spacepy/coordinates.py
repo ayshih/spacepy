@@ -414,6 +414,9 @@ class Coords(object):
 
         This method uses the GEO coordinate frame as the common frame between the two libraries.
         '''
+        if self.ticks is None:
+            raise ValueError("This method requires the attribute `ticks` to be specified.")
+
         try:
             from astropy.coordinates import SkyCoord
             from astropy.time import Time
@@ -427,10 +430,7 @@ class Coords(object):
         data = coord.data * self.Re
 
         # Convert the Ticktock ticks to an Astropy Time instance
-        if coord.ticks is not None:
-            obstime = Time(coord.ticks.ISO, format='isot', scale='utc')
-        else:
-            obstime = None
+        obstime = Time(coord.ticks.ISO, format='isot', scale='utc')
 
         return SkyCoord(x=data[:, 0], y=data[:, 1], z=data[:, 2],
                         unit='m', frame='itrs', obstime=obstime)
@@ -469,9 +469,6 @@ class Coords(object):
         data = (skycoord.cartesian.xyz.to_value('m') / cls.Re).T
 
         # Convert the SkyCoord's obstime to a Ticktock instance
-        if skycoord.obstime is not None:
-            ticks = spacepy.time.Ticktock(skycoord.obstime.utc.isot, 'ISO')
-        else:
-            ticks = None
+        ticks = spacepy.time.Ticktock(skycoord.obstime.utc.isot, 'ISO')
 
         return Coords(data, 'GEO', 'car', ticks=ticks)
