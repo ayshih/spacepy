@@ -12,9 +12,11 @@ try:
 except ImportError:
     pass #tests will fail, but won't bring down the entire suite
 try:
-    from astropy.coordinates import SkyCoord
+    import astropy.coordinates
+    import astropy.time
+    HAS_ASTROPY = True
 except ImportError:
-    pass #tests will fail, but won't bring down the entire suite
+    HAS_ASTROPY = False
 
 __all__ = ['coordsTest']
 
@@ -54,16 +56,26 @@ class coordsTest(unittest.TestCase):
         expected = spc.Coords([1,2,4], 'GEO', 'car')
         np.testing.assert_equal(expected.data, self.cvals[0].data)
 
+    @unittest.skipUnless(HAS_ASTROPY, 'requires Astropy')
+    def test_astropy_spacepy_tai(self):
+        # Confirm that the custom Astropy Time format for SpacePy TAI preserves the ISO string
+        isot = '2002-02-02T12:00:00.000'
+        spacepy_tai = Ticktock(isot, 'ISO').TAI[0]
+        astropy_isot = astropy.time.Time(spacepy_tai, format='spacepy_tai').utc.isot
+        assert astropy_isot == isot
+
+    @unittest.skipUnless(HAS_ASTROPY, 'requires Astropy')
     def test_to_skycoord_without_ticks(self):
         with self.assertRaises(ValueError) as cm:
             sc = self.cvals.to_skycoord()
 
+    @unittest.skipUnless(HAS_ASTROPY, 'requires Astropy')
     def test_to_skycoord_with_ticks(self):
         self.cvals.ticks = Ticktock(['2002-02-02T12:00:00', '2002-02-02T12:00:00'], 'ISO') # add ticktock
 
         sc = self.cvals.to_skycoord()
 
-        assert isinstance(sc, SkyCoord)
+        assert isinstance(sc, astropy.coordinates.SkyCoord)
         assert sc.frame.name == 'itrs'
 
         # Check that the data was loaded correctly
@@ -71,9 +83,10 @@ class coordsTest(unittest.TestCase):
         np.testing.assert_allclose(sc_data, self.cvals.data * self.cvals.Re, rtol=1e-10)
 
         # Check that the time was loaded correctly
-        sc_obstime = sc.obstime.utc.mjd
-        np.testing.assert_allclose(sc_obstime, self.cvals.ticks.MJD, rtol=0, atol=1e-9)
+        sc_obstime = sc.obstime.spacepy_tai
+        np.testing.assert_equal(sc_obstime, self.cvals.ticks.TAI)
 
+    @unittest.skipUnless(HAS_ASTROPY, 'requires Astropy')
     def test_to_skycoord_with_ticks_and_conversion(self):
         self.cvals.ticks = Ticktock(['2002-02-02T12:00:00', '2002-02-02T12:00:00'], 'ISO') # add ticktock
 
@@ -82,7 +95,7 @@ class coordsTest(unittest.TestCase):
 
         sc = non_geo.to_skycoord()
 
-        assert isinstance(sc, SkyCoord)
+        assert isinstance(sc, astropy.coordinates.SkyCoord)
         assert sc.frame.name == 'itrs'
 
         # Check that the data converts back correctly
@@ -90,12 +103,14 @@ class coordsTest(unittest.TestCase):
         np.testing.assert_allclose(sc_data, self.cvals.data * self.cvals.Re, rtol=1e-10)
 
         # Check that the time was loaded correctly
-        sc_obstime = sc.obstime.utc.mjd
-        np.testing.assert_allclose(sc_obstime, self.cvals.ticks.MJD, rtol=0, atol=1e-9)
+        sc_obstime = sc.obstime.spacepy_tai
+        np.testing.assert_equal(sc_obstime, self.cvals.ticks.TAI)
 
+    @unittest.skipUnless(HAS_ASTROPY, 'requires Astropy')
     def test_from_skycoord(self):
-        sc = SkyCoord(x=[1, 2], y=[4, 5], z=[7, 8], unit='Mm', frame='itrs',
-                      obstime=['2001-02-03T04:00:00', '2005-06-07T08:00:00'])
+        sc = astropy.coordinates.SkyCoord(x=[1, 2], y=[4, 5], z=[7, 8],
+                                          unit='Mm', frame='itrs',
+                                          obstime=['2001-02-03T04:00:00', '2005-06-07T08:00:00'])
 
         coords = spc.Coords.from_skycoord(sc)
 
@@ -104,12 +119,14 @@ class coordsTest(unittest.TestCase):
         np.testing.assert_allclose(coords.data * coords.Re, sc_data, rtol=1e-10)
 
         # Check that the time was loaded correctly
-        sc_obstime = sc.obstime.utc.mjd
-        np.testing.assert_allclose(coords.ticks.MJD, sc_obstime, rtol=0, atol=1e-9)
+        sc_obstime = sc.obstime.spacepy_tai
+        np.testing.assert_equal(coords.ticks.TAI, sc_obstime)
 
+    @unittest.skipUnless(HAS_ASTROPY, 'requires Astropy')
     def test_from_skycoord_with_conversion(self):
-        sc = SkyCoord(x=[1, 2], y=[4, 5], z=[7, 8], unit='Mm', frame='itrs',
-                      obstime=['2001-02-03T04:00:00', '2005-06-07T08:00:00'])
+        sc = astropy.coordinates.SkyCoord(x=[1, 2], y=[4, 5], z=[7, 8],
+                                          unit='Mm', frame='itrs',
+                                          obstime=['2001-02-03T04:00:00', '2005-06-07T08:00:00'])
 
         # Convert to a frame other than GEO before calling from_skycoord()
         coords = spc.Coords.from_skycoord(sc.gcrs)
@@ -119,8 +136,8 @@ class coordsTest(unittest.TestCase):
         np.testing.assert_allclose(coords.data * coords.Re, sc_data, rtol=1e-10)
 
         # Check that the time was loaded correctly
-        sc_obstime = sc.obstime.utc.mjd
-        np.testing.assert_allclose(coords.ticks.MJD, sc_obstime, rtol=0, atol=1e-9)
+        sc_obstime = sc.obstime.spacepy_tai
+        np.testing.assert_equal(coords.ticks.TAI, sc_obstime)
 
 
 if __name__ == "__main__":
